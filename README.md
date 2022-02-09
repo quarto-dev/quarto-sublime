@@ -6,7 +6,7 @@ To install, create a `Quarto` folder containing the Quarto `.sublime` files in t
 
 -   **Windows:** %APPDATA%\\Sublime Text\\Packages\\Quarto
 
--   **Mac:** \~/Library/Application Support/Sublime Text/Packages/Quarto
+-   **Mac:** \~/Library/Application\\ Support/Sublime\\ Text/Packages/Quarto
 
 -   **Linux:** \~/.config/sublime-text/Packages/Quarto
 
