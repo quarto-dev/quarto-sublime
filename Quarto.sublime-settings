@@ -1,0 +1,8 @@
+// These settings override both User and Default settings for the ql syntax
+{
+    // yaml often uses 2, many markdown constructs require 4
+    "tab_size": 2,
+
+    // Set to true to insert spaces when tab is pressed
+    "translate_tabs_to_spaces": true,
+}
