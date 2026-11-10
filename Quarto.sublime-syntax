@@ -1,11 +1,12 @@
 %YAML 1.2
 ---
-# http://www.sublimetext.com/docs/3/syntax.html
+# https://www.sublimetext.com/docs/syntax.html
 # forked from: https://github.com/REditorSupport/sublime-ide-r/blob/master/R%20Markdown.sublime-syntax
 name: Quarto
 file_extensions:
   - qmd
 scope: text.html.markdown.quarto
+version: 2
 comment: |-
   this definition aims to meet CommonMark specifications http://spec.commonmark.org/
   with GitHub Formatted Markdown extensions              https://github.github.com/gfm/
@@ -26,7 +27,7 @@ variables:
     atx_heading: (?:[#]{1,6}\s*)             # between 1 and 6 hashes, followed by any amount of whitespace
     indented_code_block: (?:[ ]{4}|\t)       # 4 spaces or a tab
     list_item: (?:[ ]{,3}(?=\d+\.|[*+-])\d*([*+.-])\s) # between 0 and 3 spaces, followed by either: at least one integer and a full stop, or (a star, plus or dash), followed by whitespace
-    escape: '\\[-`*_#+.!(){}\[\]\\>|~]'
+    escape: '\\[-`*_#+.!(){}\[\]\\>|~@]'
     backticks: |-
         (?x:
             (`{4})(?![\s`])(?:[^`]+(?=`)|(?!`{4})`+(?!`))+(`{4})(?!`)  # 4 backticks, followed by at least one non whitespace, non backtick character, followed by (less than 4 backticks, or at least one non backtick character) at least once, followed by exactly 4 backticks
@@ -46,6 +47,7 @@ variables:
               )*\]                      #  closing square bracket
           )+                            # at least one character
         )
+    inline_knitr_end: \1(?!`)|^(?=\s*$)          # the closing backticks, or a blank line if the span is unterminated
     html_entity: '&([a-zA-Z0-9]+|#\d+|#x\h+);'
     skip_html_tags: (?:<[^>]+>)
     balance_square_brackets_and_emphasis: |-
@@ -122,6 +124,11 @@ variables:
         )
         \s*$          # any amount of whitespace until EOL
       )
+    # Fenced div markers, without the leading indent: at top level Pandoc
+    # accepts them only at column 0; inside list items any indent is allowed.
+    fenced_div_close: (:{3,})[ \t]*$\n?
+    fenced_div_open_attributes: (:{3,})[ \t]*(?=\{[^}\n]*\}[ \t]*:*[ \t]*$)
+    fenced_div_open_name: (:{3,})[ \t]*([\w-]+)[ \t]*:*[ \t]*$\n?
     html_tag_open_commonmark: |-
       (?xi:
         <
@@ -187,7 +194,7 @@ contexts:
       captures:
         1: punctuation.definition.frontmatter
       embed: scope:source.yaml
-      embed_scope: markup.raw.yaml.front-matter
+      embed_scope: markup.raw.yaml.front-matter source.yaml
       escape: ^\s*(---)\s*$
       escape_captures:
           1: punctuation.definition.frontmatter
@@ -195,14 +202,14 @@ contexts:
       captures:
         1: punctuation.definition.frontmatter
       embed: scope:source.toml
-      embed_scope: markup.raw.toml.front-matter
+      embed_scope: markup.raw.toml.front-matter source.toml
       escape: ^\s*(\+\+\+)\s*$
       escape_captures:
           1: punctuation.definition.frontmatter
     - match: ""
-      pop: true
       set: body
   body:
+    - include: fenced-div
     - match: |-
         (?x)^
         (?=  {{block_quote}}
@@ -310,6 +317,7 @@ contexts:
                 |   [ ]{,3}[*+-][ ]      # an unordered list item begins the line
                 |   [ ]{,3}1[.][ ]       # an ordered list item with number "1" begins the line
                 |   \#                   # an ATX heading begins the line
+                |   :{3,}[ \t]*$         # a closing fenced div marker (Pandoc: column 0 only)
                 |   [ ]{,3}<(            # all types of HTML blocks except type 7 may interrupt a paragraph
                       {{html_tag_block_end_at_close_tag}}   # 1
                     | !--                                   # 2
@@ -579,6 +587,7 @@ contexts:
         - meta_scope: markup.heading.1.markdown
         - meta_content_scope: entity.name.section.markdown
         - include: atx-heading-terminator
+        - include: heading-attributes
         - include: inline-bold-italic
     - match: '(##)(?!#)\s*(?=\S)'
       captures:
@@ -587,6 +596,7 @@ contexts:
         - meta_scope: markup.heading.2.markdown
         - meta_content_scope: entity.name.section.markdown
         - include: atx-heading-terminator
+        - include: heading-attributes
         - include: inline-bold-italic
     - match: '(#{3,6})(?!#)\s*(?=\S)'
       captures:
@@ -595,6 +605,7 @@ contexts:
         - meta_scope: markup.heading.markdown
         - meta_content_scope: entity.name.section.markdown
         - include: atx-heading-terminator
+        - include: heading-attributes
         - include: inline-bold-italic
   image-inline:
     - match: |-
@@ -709,6 +720,7 @@ contexts:
     - include: link-ref
     - include: link-ref-footnote
     - include: citations
+    - include: shortcode
   inline-bold-italic:
     - include: inline
     - include: bold
@@ -1002,13 +1014,16 @@ contexts:
           pop: true
     - match: '^(?={{fenced_code_block_start}})'
       push:
+        - include: fenced-code-block-knitr
         - include: fenced-code-block
         - match: ''
           pop: true
+    - include: fenced-div-indented
     - match: \s+(?=\S)
       push:
         - match: ^\s*$
           pop: true
+        - include: fenced-div-indented
         - match: '([ ]*)([*+-])(?=\s)'
           captures:
             1: markup.list.unnumbered.markdown
@@ -1038,6 +1053,7 @@ contexts:
       push:
         - match: $
           pop: true
+        - include: fenced-code-block-knitr
         - include: fenced-code-block
     - match: ^
       pop: true
@@ -1061,7 +1077,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:text.xml
-      embed_scope: markup.raw.code-fence.xml.markdown-gfm
+      embed_scope: markup.raw.code-fence.xml.markdown-gfm text.xml
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.xml.markdown-gfm
@@ -1076,7 +1092,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.sql
-      embed_scope: markup.raw.code-fence.sql.markdown-gfm
+      embed_scope: markup.raw.code-fence.sql.markdown-gfm source.sql
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.sql.markdown-gfm
@@ -1091,7 +1107,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.python
-      embed_scope: markup.raw.code-fence.python.markdown-gfm
+      embed_scope: markup.raw.code-fence.python.markdown-gfm source.python
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.python.markdown-gfm
@@ -1106,7 +1122,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.dot
-      embed_scope: markup.raw.code-fence.graphviz.markdown-gfm
+      embed_scope: markup.raw.code-fence.graphviz.markdown-gfm source.dot
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.graphviz.markdown-gfm
@@ -1121,7 +1137,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.js
-      embed_scope: markup.raw.code-fence.javascript.markdown-gfm
+      embed_scope: markup.raw.code-fence.javascript.markdown-gfm source.js
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.javascript.markdown-gfm
@@ -1136,7 +1152,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.json
-      embed_scope: markup.raw.code-fence.json.markdown-gfm
+      embed_scope: markup.raw.code-fence.json.markdown-gfm source.json
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.json.markdown-gfm
@@ -1151,7 +1167,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.java
-      embed_scope: markup.raw.code-fence.java.markdown-gfm
+      embed_scope: markup.raw.code-fence.java.markdown-gfm source.java
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.java.markdown-gfm
@@ -1166,7 +1182,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.cs
-      embed_scope: markup.raw.code-fence.csharp.markdown-gfm
+      embed_scope: markup.raw.code-fence.csharp.markdown-gfm source.cs
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.csharp.markdown-gfm
@@ -1181,7 +1197,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.rust
-      embed_scope: markup.raw.code-fence.rust.markdown-gfm
+      embed_scope: markup.raw.code-fence.rust.markdown-gfm source.rust
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.rust.markdown-gfm
@@ -1196,7 +1212,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.shell.bash
-      embed_scope: markup.raw.code-fence.shell-script.markdown-gfm
+      embed_scope: markup.raw.code-fence.shell-script.markdown-gfm source.shell.bash
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.shell-script.markdown-gfm
@@ -1211,7 +1227,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.php
-      embed_scope: markup.raw.code-fence.php.markdown-gfm
+      embed_scope: markup.raw.code-fence.php.markdown-gfm source.php
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.php.markdown-gfm
@@ -1226,7 +1242,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:embedding.php
-      embed_scope: markup.raw.code-fence.html-php.markdown-gfm
+      embed_scope: markup.raw.code-fence.html-php.markdown-gfm embedding.php
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.html-php.markdown-gfm
@@ -1241,7 +1257,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.r
-      embed_scope: markup.raw.code-fence.r.markdown-gfm
+      embed_scope: markup.raw.code-fence.r.markdown-gfm source.r
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.r.markdown-gfm
@@ -1256,7 +1272,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.go
-      embed_scope: markup.raw.code-fence.go.markdown-gfm
+      embed_scope: markup.raw.code-fence.go.markdown-gfm source.go
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.go.markdown-gfm
@@ -1271,7 +1287,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.ruby
-      embed_scope: markup.raw.code-fence.ruby.markdown-gfm
+      embed_scope: markup.raw.code-fence.ruby.markdown-gfm source.ruby
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.ruby.markdown-gfm
@@ -1286,7 +1302,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.objc
-      embed_scope: markup.raw.code-fence.objc.markdown-gfm
+      embed_scope: markup.raw.code-fence.objc.markdown-gfm source.objc
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.objc.markdown-gfm
@@ -1301,7 +1317,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.objc++
-      embed_scope: markup.raw.code-fence.objc++.markdown-gfm
+      embed_scope: markup.raw.code-fence.objc++.markdown-gfm source.objc++
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.objc++.markdown-gfm
@@ -1316,7 +1332,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.c
-      embed_scope: markup.raw.code-fence.c.markdown-gfm
+      embed_scope: markup.raw.code-fence.c.markdown-gfm source.c
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.c.markdown-gfm
@@ -1331,7 +1347,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.c++
-      embed_scope: markup.raw.code-fence.c++.markdown-gfm
+      embed_scope: markup.raw.code-fence.c++.markdown-gfm source.c++
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.c++.markdown-gfm
@@ -1346,7 +1362,7 @@ contexts:
         2: punctuation.definition.raw.code-fence.begin.markdown
         5: constant.other.language-name.markdown
       embed: scope:source.regexp
-      embed_scope: markup.raw.code-fence.regexp.markdown-gfm
+      embed_scope: markup.raw.code-fence.regexp.markdown-gfm source.regexp
       escape: '{{code_fence_escape}}'
       escape_captures:
         0: meta.code-fence.definition.end.regexp.markdown-gfm
@@ -1502,6 +1518,8 @@ contexts:
     - match: \}
       scope: punctuation.definition.attributes.end.markdown
       pop: true
+    - match: (?=$)
+      pop: true
     - match: \,
       scope: punctuation.separator.mapping.pair.markdown
     - match: '{{tag_attribute_name_start}}'
@@ -1532,12 +1550,16 @@ contexts:
         - match: \"
           scope: punctuation.definition.string.end.markdown
           pop: true
+        - match: (?=$)
+          pop: true
     - match: \'
       scope: punctuation.definition.string.begin.markdown
       set:
         - meta_scope: string.quoted.single.markdown
         - match: \'
           scope: punctuation.definition.string.end.markdown
+          pop: true
+        - match: (?=$)
           pop: true
     - match: '{{tag_unquoted_attribute_start}}'
       set:
@@ -1598,155 +1620,232 @@ contexts:
                     - include: scope:text.html.basic
 
   fenced-code-block-knitr:
-    - match: (```)(\{)(r|Rscript)\b
+    # The opening fence is matched on its own because an escape can only
+    # backreference the rule that embeds it, and the closing fence has to be at
+    # least as long as the opening one, alone on its line.
+    - match: ^[ \t]*(`{3,})(?=\{)
       captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.r.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.optio.markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.r.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.r
-              embed_scope: markup.raw.code-fence.r.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.r.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
+        1: meta.code-fence.definition.begin.markdown-knitr punctuation.definition.raw.code-fence.begin.markdown
+      embed: knitr-cell-header
+      escape: ^[ \t]*(\1`*)[ \t]*$\n?
+      escape_captures:
+        0: meta.code-fence.definition.end.markdown-knitr
+        1: punctuation.definition.raw.code-fence.end.markdown
 
-    - match: (```)(\{)(python)\b
+  knitr-cell-header:
+    # A leading dot marks a display-only block such as {.python}.
+    - match: (?=\{\.?(?:r|Rscript)\b)
+      set: [knitr-cell-body-r, knitr-cell-language]
+    - match: (?=\{\.?python\b)
+      set: [knitr-cell-body-python, knitr-cell-language]
+    - match: (?=\{\.?julia\b)
+      set: [knitr-cell-body-julia, knitr-cell-language]
+    - match: (?=\{\.?sql\b)
+      set: [knitr-cell-body-sql, knitr-cell-language]
+    - match: (?=\{\.?(?:bash|sh)\b)
+      set: [knitr-cell-body-bash, knitr-cell-language]
+    - match: (?=\{\.?Rcpp\b)
+      set: [knitr-cell-body-cpp, knitr-cell-language]
+    - match: (?=\{\.?ojs\b)
+      set: [knitr-cell-body-ojs, knitr-cell-language]
+    - match: (?=\{\.?dot\b)
+      set: [knitr-cell-body-dot, knitr-cell-language]
+    - match: (?=\{=html\b)
+      set: [knitr-cell-body-html, knitr-cell-language]
+    - match: (?=\{=(?:latex|tex)\b)
+      set: [knitr-cell-body-latex, knitr-cell-language]
+    # Anything else, including mermaid, which Sublime has no bundled syntax for.
+    - match: (?=\{[.=]?[\w-]+)
+      set: [knitr-cell-body-other, knitr-cell-language]
+    - match: ''
+      set: knitr-cell-body-other
+
+  knitr-cell-language:
+    - match: (\{)[.=]?([\w-]+)
       captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.python.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.options.py.markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.python.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.python
-              embed_scope: markup.raw.code-fence.python.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.python.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
+        1: meta.code-fence.definition.begin.markdown-knitr punctuation.definition.raw.code-fence.options.begin.markdown
+        2: meta.code-fence.definition.begin.markdown-knitr constant.other.language-name.markdown
+      set: knitr-cell-options
 
-    - match: (```)(\{)(julia)\b
-      captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.julia.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.options.j.markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.julia.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.julia
-              embed_scope: markup.raw.code-fence.julia.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.julia.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
+  knitr-cell-options:
+    - meta_scope: meta.code-fence.definition.begin.markdown-knitr
+    - meta_content_scope: meta.code-fence.definition.options.markdown-knitr
+    - match: \}
+      scope: punctuation.definition.raw.code-fence.options.end.markdown
+      pop: true
+    - match: $
+      pop: true
+    - match: (?=[^}])
+      embed: scope:source.r
+      escape: (?=\}[ \t]*$)|(?=$)
 
-    - match: (```)(\{)(sql)\b
-      captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.sql.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.options.markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.sql.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.sql
-              embed_scope: markup.raw.code-fence.sql.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.sql.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
-
-    - match: (```)(\{)(bash|sh)\b
-      captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.bash.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.options..markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.bash.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.shell.bash
-              embed_scope: markup.raw.code-fence.bash.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.bash.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
-
-    - match: (```)(\{)(Rcpp)\b
-      captures:
-        1: punctuation.definition.raw.code-fence.begin.markdown
-        2: punctuation.definition.raw.code-fence.options.begin.markdown
-        3: constant.other.language-name.markdown
-      push:
-        - meta_scope: meta.code-fence.definition.begin.bash.markdown-knitr
-        - meta_content_scope: meta.code-fence.definition.options..markdown-knitr
-        - match: (?=\})
-          set:
-            - match: '\}'
-              scope: meta.code-fence.definition.begin.bash.markdown-knitr punctuation.definition.raw.code-fence.options.end.markdown
-              embed: scope:source.c++
-              embed_scope: markup.raw.code-fence.bash.markdown-knitr
-              escape: '(```)'
-              escape_captures:
-                0: meta.code-fence.definition.end.bash.markdown-knitr
-                1: punctuation.definition.raw.code-fence.end.markdown
-            - match: ''
-              pop: true
-        - include: scope:source.r
-
+  knitr-cell-body-r:
+    - meta_content_scope: markup.raw.code-fence.r.markdown-knitr
+    - match: ''
+      push: scope:source.r
+  knitr-cell-body-python:
+    - meta_content_scope: markup.raw.code-fence.python.markdown-knitr
+    - match: ''
+      push: scope:source.python
+  knitr-cell-body-julia:
+    - meta_content_scope: markup.raw.code-fence.julia.markdown-knitr
+    - match: ''
+      push: scope:source.julia
+  knitr-cell-body-sql:
+    - meta_content_scope: markup.raw.code-fence.sql.markdown-knitr
+    - match: ''
+      push: scope:source.sql
+  knitr-cell-body-bash:
+    - meta_content_scope: markup.raw.code-fence.bash.markdown-knitr
+    - match: ''
+      push: scope:source.shell.bash
+  knitr-cell-body-cpp:
+    - meta_content_scope: markup.raw.code-fence.c++.markdown-knitr
+    - match: ''
+      push: scope:source.c++
+  knitr-cell-body-ojs:
+    - meta_content_scope: markup.raw.code-fence.ojs.markdown-knitr
+    - match: ''
+      push: scope:source.js
+  knitr-cell-body-dot:
+    - meta_content_scope: markup.raw.code-fence.dot.markdown-knitr
+    - match: ''
+      push: scope:source.dot
+  knitr-cell-body-html:
+    - meta_content_scope: markup.raw.code-fence.html.markdown-knitr
+    - match: ''
+      push: scope:text.html.basic
+  knitr-cell-body-latex:
+    - meta_content_scope: markup.raw.code-fence.latex.markdown-knitr
+    - match: ''
+      push: scope:text.tex.latex
+  knitr-cell-body-other:
+    - meta_content_scope: markup.raw.code-fence.markdown-knitr
 
   code-span-knitr:
-    - match: (`+)(r) (?!`)
+    # Embedded rather than included: the escape is honoured at any nesting depth,
+    # so the embedded syntax cannot hold the span open past its closing backtick.
+    - match: (`+)(r|\{r\})[ ](?!`)
+      scope: markup.raw.inline.markdown-knitr
       captures:
         1: punctuation.definition.raw.begin.markdown
         2: constant.other.language-name.markdown
+      embed: scope:source.r
+      embed_scope: markup.raw.inline.markdown-knitr source.r
+      escape: '{{inline_knitr_end}}'
+      escape_captures:
+        0: markup.raw.inline.markdown-knitr punctuation.definition.raw.end.markdown
+    - match: (`+)(\{python\})[ ](?!`)
+      scope: markup.raw.inline.markdown-knitr
+      captures:
+        1: punctuation.definition.raw.begin.markdown
+        2: constant.other.language-name.markdown
+      embed: scope:source.python
+      embed_scope: markup.raw.inline.markdown-knitr source.python
+      escape: '{{inline_knitr_end}}'
+      escape_captures:
+        0: markup.raw.inline.markdown-knitr punctuation.definition.raw.end.markdown
+    - match: (`+)(\{julia\})[ ](?!`)
+      scope: markup.raw.inline.markdown-knitr
+      captures:
+        1: punctuation.definition.raw.begin.markdown
+        2: constant.other.language-name.markdown
+      embed: scope:source.julia
+      embed_scope: markup.raw.inline.markdown-knitr source.julia
+      escape: '{{inline_knitr_end}}'
+      escape_captures:
+        0: markup.raw.inline.markdown-knitr punctuation.definition.raw.end.markdown
+
+###[ QUARTO BLOCKS AND SHORTCODES ]###########################################
+
+  fenced-div:
+    # https://quarto.org/docs/authoring/markdown-basics.html#divs-and-spans
+    # Top level: column 0 only, so indented code containing ::: stays code.
+    - match: ^{{fenced_div_close}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.end.markdown
+    - match: ^{{fenced_div_open_attributes}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.begin.markdown
+      push: fenced-div-attributes
+    - match: ^{{fenced_div_open_name}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.begin.markdown
+        2: entity.other.attribute-name.markdown
+
+  fenced-div-indented:
+    # Inside list items, where Pandoc accepts any indent.
+    - match: ^[ \t]*{{fenced_div_close}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.end.markdown
+    - match: ^[ \t]*{{fenced_div_open_attributes}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.begin.markdown
+      push: fenced-div-attributes
+    - match: ^[ \t]*{{fenced_div_open_name}}
+      scope: meta.div.markdown
+      captures:
+        1: punctuation.section.div.begin.markdown
+        2: entity.other.attribute-name.markdown
+
+  fenced-div-attributes:
+    - match: \{
+      scope: meta.div.markdown punctuation.definition.attributes.begin.markdown
+      set:
+        - meta_scope: meta.div.markdown
+        - include: tag-attributes
+
+  heading-attributes:
+    - match: '[ \t]*(\{)(?=[^}\n]*\}[ \t]*#*[ \t]*$)'
+      captures:
+        1: punctuation.definition.attributes.begin.markdown
       push:
-        - meta_scope: markup.raw.inline.markdown-knitr
-        - meta_content_scope: source.r
-        - match: \1(?!`)
-          scope: punctuation.definition.raw.end.markdown
+        - meta_scope: meta.attributes.heading.markdown
+        - include: tag-attributes
+
+  shortcode:
+    # https://quarto.org/docs/extensions/shortcodes.html
+    - match: \{\{<
+      scope: punctuation.definition.shortcode.begin.quarto
+      push: [shortcode-arguments, shortcode-name]
+
+  shortcode-name:
+    - match: '[ \t]*([\w-]+)'
+      captures:
+        1: support.function.shortcode.quarto
+      pop: true
+    - include: else-pop
+
+  shortcode-arguments:
+    - meta_scope: meta.shortcode.quarto
+    - match: '>\}\}'
+      scope: punctuation.definition.shortcode.end.quarto
+      pop: true
+    - match: $\n?
+      pop: true
+    - match: '"'
+      scope: punctuation.definition.string.begin.quarto
+      push:
+        - meta_scope: string.quoted.double.quarto
+        - match: '"'
+          scope: punctuation.definition.string.end.quarto
           pop: true
-        - match: '`+'
-        - match: ^\s*$\n?
-          scope: invalid.illegal.non-terminated.raw.markdown
+        - match: (?=$)
           pop: true
-        - include: scope:source.r
+    - match: "'"
+      scope: punctuation.definition.string.begin.quarto
+      push:
+        - meta_scope: string.quoted.single.quarto
+        - match: "'"
+          scope: punctuation.definition.string.end.quarto
+          pop: true
+        - match: (?=$)
+          pop: true
 
   latex-math:
     - match: \\\$
@@ -1780,35 +1879,13 @@ contexts:
           pop: true
     - match: '(?=\\begin\{\s*(equation|align)\s*\*?\s*\})'
       push:
-        - include: math-content
+        - include: scope:text.tex.latex#block-math-begin-end-command
         - match: '(?=\S)'
           pop: true
 
-  math-braces:
-    - match: '\{'
-      scope: punctuation.definition.group.brace.begin.latex
-      push:
-        - meta_scope: meta.group.brace.latex
-        - match: '\}'
-          scope: punctuation.definition.group.brace.end.latex
-          pop: true
-        - include: math-content
-
   math-content:
     - include: code-span-knitr
-    - include: scope:text.tex.latex#verb
-    - include: scope:text.tex.latex#text-decorators
-    - include: scope:text.tex.latex#references
-    - include: scope:text.tex.latex#begin-end-commands
-    - include: scope:text.tex#greeks
-    - include: scope:text.tex#math-brackets
-    - include: math-braces
-    - include: scope:text.tex.latex#boxes
-    - include: scope:text.tex#math-commands
-    - include: scope:text.tex#math-operators
-    - include: scope:text.tex#math-characters
-    - include: scope:text.tex#math-numerics
-    - include: scope:text.tex.latex#general-constants
+    - include: scope:text.tex.latex#math-content
 
 
 ###[ PROTOTYPES ]#############################################################
