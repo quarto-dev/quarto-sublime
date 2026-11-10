@@ -1,4 +1,4 @@
-// These settings override both User and Default settings for the ql syntax
+// These settings override both User and Default settings for the Quarto syntax
 {
     // yaml often uses 2, many markdown constructs require 4
     "tab_size": 2,

@@ -1,0 +1,190 @@
+<!-- SYNTAX TEST "Packages/Quarto/Quarto.sublime-syntax" -->
+
+## Heading {#sec-intro .unnumbered}
+<!--        ^ meta.attributes.heading.markdown -->
+
+An inline `r y + 1` then **bold**.
+<!--                       ^^^^ markup.bold.markdown -->
+
+Inline `{python} radius + 1` then **bold**.
+<!--                      ^ source.python constant.numeric -->
+<!--                                ^^^^ markup.bold.markdown -->
+
+Inline `{r} x + 1` and an unterminated `r z
+
+Next paragraph is **bold**.
+<!--                ^^^^ markup.bold.markdown -->
+
+::: {.callout-note}
+<!-- <- meta.div.markdown punctuation.section.div.begin.markdown -->
+<!-- ^ meta.div.markdown entity.other.attribute-name.markdown -->
+Inner text.
+:::
+<!-- <- meta.div.markdown punctuation.section.div.end.markdown -->
+
+{{< include _part.qmd >}}
+<!-- ^^^^^^ meta.shortcode.quarto support.function.shortcode.quarto -->
+<!--        ^^^^^^^^^ meta.shortcode.quarto - markup.italic -->
+
+Math $\alpha + 2$ end **bold**.
+<!--   ^^^^^ keyword.other.math.greek.tex -->
+<!--           ^ constant.numeric.value.tex -->
+<!--                    ^^^^ markup.bold.markdown -->
+
+````{python}
+u = 1
+<!-- <- source.python -->
+````
+<!-- <- meta.code-fence.definition.end.markdown-knitr -->
+
+```{r}
+x <- "```"
+<!-- ^ source.r -->
+y <- 2
+<!-- <- source.r -->
+```
+<!-- <- meta.code-fence.definition.end.markdown-knitr -->
+
+After a cell is **bold**.
+<!--              ^^^^ markup.bold.markdown -->
+
+```{ojs}
+viewof a = 1
+<!-- <- source.js -->
+```
+
+```{dot}
+graph G { a -- b }
+<!-- <- source.dot -->
+```
+
+```{.python}
+w = 1
+<!-- <- source.python -->
+```
+
+```{=html}
+<b>raw</b>
+<!-- <- text.html.basic -->
+```
+
+```{mermaid}
+flowchart LR
+<!-- <- markup.raw.code-fence.markdown-knitr -->
+```
+
+- item
+
+  ```{r}
+  q <- 1
+<!-- ^ source.r -->
+  ```
+
+```{r}
+x <- 1
+```
+After a cell directly is **bold**.
+<!--                       ^^^^ markup.bold.markdown -->
+
+::: {.callout-note}
+```{r}
+x <- 1
+```
+:::
+<!-- <- meta.div.markdown punctuation.section.div.end.markdown -->
+
+```python
+a = 1
+<!-- <- source.python -->
+```
+# Heading directly after a fence
+<!-- <- markup.heading.1.markdown -->
+
+```{r, echo=FALSE}
+<!--        ^^^^^ meta.code-fence.definition.options.markdown-knitr -->
+<!--             ^ punctuation.definition.raw.code-fence.options.end.markdown -->
+x <- 1
+```
+
+```{julia}
+z = 1
+<!-- <- markup.raw.code-fence.julia.markdown-knitr -->
+```
+
+Paragraph after julia is **bold**.
+<!--                       ^^^^ markup.bold.markdown -->
+
+```{sql}
+select 1
+<!-- <- source.sql -->
+```
+
+```{bash}
+echo hi
+<!-- <- source.shell.bash -->
+```
+
+```{Rcpp}
+int a;
+<!-- <- source.c++ -->
+```
+
+```{=latex}
+\alpha
+<!-- <- text.tex.latex -->
+```
+
+::::: warning
+<!--  ^^^^^^^ meta.div.markdown entity.other.attribute-name.markdown -->
+:::::
+
+{{< meta "a b" >}}
+<!--      ^^^ meta.shortcode.quarto string.quoted.double.quarto -->
+
+{{< meta unterminated
+
+Paragraph after shortcode is **bold**.
+<!--                           ^^^^ markup.bold.markdown -->
+
+Escaped \@notcite here.
+<!--      ^^^^^^^ meta.paragraph.markdown - meta.link -->
+
+\begin{equation}
+\alpha + 1
+<!-- <- keyword.other.math.greek.tex -->
+\end{equation}
+
+Paragraph after equation is **bold**.
+<!--                          ^^^^ markup.bold.markdown -->
+
+## Unbalanced {a="b}
+
+Paragraph after unbalanced attribute is **bold**.
+<!--                                      ^^^^ markup.bold.markdown -->
+
+- item
+
+  ::: {.callout-note}
+<!--    ^^^^^^^ markup.list.unnumbered meta.div.markdown entity.other.attribute-name.markdown -->
+
+- item
+
+  ::: {.callout-note}
+  text
+  :::::
+<!--  ^ markup.list.unnumbered meta.div.markdown punctuation.section.div.end.markdown -->
+
+Top-level div markers open only at column 0, as in Pandoc.
+
+    ::: {.x}
+<!--    ^ markup.raw.block.markdown - meta.div -->
+
+  ::: {.x}
+<!--  ^ - meta.div -->
+
+Paragraph text
+::: {.x}
+<!-- ^ meta.paragraph.markdown - meta.div -->
+
+Last paragraph is **bold**.
+<!--                ^^^^ markup.bold.markdown -->
